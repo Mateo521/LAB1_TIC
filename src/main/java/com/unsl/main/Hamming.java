@@ -21,7 +21,7 @@ import java.util.Scanner;
 public class Hamming {
 
     // Calcula el número de bits de paridad necesarios para un número de bits de datos dado
-    public static int calculateParityBits(int dataBits) {
+    public static int calcularParidadBitsHamming(int dataBits) { /* BIT GLOBAL AÑADIR */
         int m = 1;
         while (Math.pow(2, m) < dataBits + m + 1) {
             m++;
@@ -31,83 +31,67 @@ public class Hamming {
 
 
 
-public static List<Integer> detectAndCorrectErrors(List<Integer> receivedData) {
-    if (receivedData == null || receivedData.isEmpty()) {
-        return new ArrayList<>();
-    }
-    // Crear una copia de los datos recibidos
-    List<Integer> correctedData = new ArrayList<>(receivedData);
-    
-    // Calculamos el síndrome
-    int errorPosition = 0;
-    int m = calculateParityBits(receivedData.size() - calculateParityBits(receivedData.size()));
-    
-    // Verificar cada bit de paridad y calcular la posición del error
-    for (int i = 0; i < m; i++) {
-        int parityBitIndex = (int) Math.pow(2, i);
-        if (parityBitIndex <= receivedData.size()) {
-            // Calcular la paridad esperada
-            int expectedParity = 0;
-            for (int j = 0; j < receivedData.size(); j++) {
-                if (j != parityBitIndex - 1 && ((j + 1) & parityBitIndex) != 0) {
-                    expectedParity ^= receivedData.get(j);
-                }
-            }
-            // Comparar con la paridad actual
-            if (expectedParity != receivedData.get(parityBitIndex - 1)) {
-                errorPosition += parityBitIndex;
-            }
+    public static List<Integer> detectarYCorregirErrores(List<Integer> receivedData) {
+        if (receivedData == null || receivedData.isEmpty()) {
+            return new ArrayList<>();
         }
-    }
     
-    // Solo corregir si la posición del error es válida
-    if (errorPosition > 0 && errorPosition <= correctedData.size()) {
-        System.out.println("Error detectado en la posición: " + errorPosition);
-        // Corregir el bit erróneo
-        correctedData.set(errorPosition - 1, 1 - correctedData.get(errorPosition - 1));
+        // Verificar primero la paridad global
+        int originalGlobalParity = receivedData.get(receivedData.size() - 1);
+        int calculatedGlobalParity = calcularParidadGlobal(receivedData.subList(0, receivedData.size() - 1));
         
-        // Verificar si la corrección resolvió todas las discrepancias de paridad
-        boolean allParitiesCorrect = true;
+        boolean globalParityError = (originalGlobalParity != calculatedGlobalParity);
+        
+        // Crear una copia de los datos recibidos (sin el bit de paridad global)
+        List<Integer> correctedData = new ArrayList<>(receivedData.subList(0, receivedData.size() - 1));
+        
+        // Calculamos el síndrome
+        int errorPosition = 0;
+        int m = calcularParidadBitsHamming(receivedData.size() - calcularParidadBitsHamming(receivedData.size()) - 1);
+        
+        // Verificar cada bit de paridad Hamming
         for (int i = 0; i < m; i++) {
             int parityBitIndex = (int) Math.pow(2, i);
             if (parityBitIndex <= correctedData.size()) {
-                int calculatedParity = 0;
+                int expectedParity = 0;
                 for (int j = 0; j < correctedData.size(); j++) {
                     if (j != parityBitIndex - 1 && ((j + 1) & parityBitIndex) != 0) {
-                        calculatedParity ^= correctedData.get(j);
+                        expectedParity ^= correctedData.get(j);
                     }
                 }
-                if (calculatedParity != correctedData.get(parityBitIndex - 1)) {
-                    allParitiesCorrect = false;
-                    break;
+                if (expectedParity != correctedData.get(parityBitIndex - 1)) {
+                    errorPosition += parityBitIndex;
                 }
             }
         }
-        
-        if (allParitiesCorrect) {
-            System.out.println("Error corregido con éxito en la posición: " + errorPosition);
+    
+        // Analizar los resultados de ambas verificaciones
+        if (!globalParityError && errorPosition == 0) {
+            System.out.println("No se detectaron errores");
+        } else if (globalParityError && errorPosition > 0) {
+            System.out.println("Error simple detectado en la posición: " + errorPosition);
+            // Corregir el error
+            if (errorPosition <= correctedData.size()) {
+                correctedData.set(errorPosition - 1, 1 - correctedData.get(errorPosition - 1));
+            }
         } else {
-            System.out.println("La corrección no resolvió todas las discrepancias. Posible error múltiple.");
+            System.out.println("Se detectó un error que no se puede corregir (posible error múltiple)");
         }
-    } else if (errorPosition == 0) {
-        System.out.println("No se detectaron errores en este bloque");
-    } else {
-        System.out.println("Posición de error inválida: " + errorPosition);
+    
+        // Extraer solo los bits de datos
+        List<Integer> dataOnly = new ArrayList<>();
+        for (int i = 0; i < correctedData.size(); i++) {
+            if (!esPotenciaDeDos(i + 1)) {
+                dataOnly.add(correctedData.get(i));
+            }
+        }
+        
+        return dataOnly;
     }
     
-    // Extraer solo los bits de datos (todos los que no son potencias de 2)
-    List<Integer> dataOnly = new ArrayList<>();
-    for (int i = 0; i < correctedData.size(); i++) {
-        if (!isPowerOfTwo(i + 1)) {
-            dataOnly.add(correctedData.get(i));
-        }
-    }
-    
-    return dataOnly;
-}
 
 // Función auxiliar para verificar si un número es potencia de 2
-public static boolean isPowerOfTwo(int n) {
+public static boolean esPotenciaDeDos(int n) {
     return n > 0 && (n & (n - 1)) == 0;
 }
 
@@ -115,12 +99,22 @@ public static boolean isPowerOfTwo(int n) {
 
 
 // Función auxiliar para verificar la paridad de un bloque completo
+
 public static boolean verificarCodigoVerificado(List<Integer> block) {
-    int m = calculateParityBits(block.size() - calculateParityBits(block.size()));
+    // Verificar paridad global
+    int originalGlobalParity = block.get(block.size() - 1);
+    int calculatedGlobalParity = calcularParidadGlobal(block.subList(0, block.size() - 1));
+    
+    if (originalGlobalParity != calculatedGlobalParity) {
+        return false;
+    }
+    
+    // Verificar paridades Hamming
+    int m = calcularParidadBitsHamming(block.size() - calcularParidadBitsHamming(block.size()) - 1);
     for (int i = 0; i < m; i++) {
         int parityBitIndex = (int) Math.pow(2, i);
-        if (parityBitIndex <= block.size()) {
-            if (calculateParity(block, parityBitIndex) != block.get(parityBitIndex - 1)) {
+        if (parityBitIndex <= block.size() - 1) { // -1 para excluir el bit global
+            if (calcularParidadHamming(block, parityBitIndex) != block.get(parityBitIndex - 1)) {
                 return false;
             }
         }
@@ -129,8 +123,9 @@ public static boolean verificarCodigoVerificado(List<Integer> block) {
 }
 
 
-// También vamos a modificar la función calculateParity para hacerla más precisa
-public static int calculateParity(List<Integer> data, int position) {
+
+// También vamos a modificar la función calcularParidadHamming para hacerla más precisa
+public static int calcularParidadHamming(List<Integer> data, int position) {
     int parity = 0;
     for (int i = position - 1; i < data.size(); i++) {
         if (((i + 1) & position) != 0) {  // Usando AND bit a bit
@@ -140,29 +135,42 @@ public static int calculateParity(List<Integer> data, int position) {
     return parity;
 }
 
-// Y modificar la función addHammingBits para asegurar la correcta colocación de los bits
-public static List<Integer> addHammingBits(List<Integer> data) {
-    int m = calculateParityBits(data.size());
+private static int calcularParidadGlobal(List<Integer> block) {
+    int count = 0;
+    for (int bit : block) {
+        if (bit == 1) count++;
+    }
+    return count % 2; // 0 si es par, 1 si es impar
+}
+
+
+
+// Y modificar la función anadirBitsHamming para asegurar la correcta colocación de los bits
+public static List<Integer> anadirBitsHamming(List<Integer> data) {
+    int m = calcularParidadBitsHamming(data.size());
     List<Integer> encodedData = new ArrayList<>();
     
-    // Inicializar el tamaño total
-    for (int i = 0; i < data.size() + m; i++) {
+    // Inicializar el tamaño total (añadimos +1 para el bit de paridad global)
+    for (int i = 0; i < data.size() + m + 1; i++) {
         encodedData.add(0);
     }
     
     // Colocar los bits de datos en las posiciones correctas
     int dataIndex = 0;
-    for (int i = 1; i <= encodedData.size(); i++) {
-        if (!isPowerOfTwo(i)) {
+    for (int i = 1; i <= encodedData.size() - 1; i++) { // -1 para dejar espacio al bit global
+        if (!esPotenciaDeDos(i)) {
             encodedData.set(i - 1, data.get(dataIndex++));
         }
     }
     
-    // Calcular y colocar los bits de paridad
+    // Calcular y colocar los bits de paridad Hamming
     for (int i = 0; i < m; i++) {
         int parityPos = (int)Math.pow(2, i) - 1;
-        encodedData.set(parityPos, calculateParity(encodedData, parityPos + 1));
+        encodedData.set(parityPos, calcularParidadHamming(encodedData, parityPos + 1));
     }
+    
+    // Calcular y añadir el bit de paridad global al final
+    encodedData.set(encodedData.size() - 1, calcularParidadGlobal(encodedData.subList(0, encodedData.size() - 1)));
     
     return encodedData;
 }
@@ -192,16 +200,16 @@ public static String blocksToString(List<List<Integer>> blocks, int originalBloc
     return result.toString();
 }
 
-// Modificar la función addHammingBits para asegurar el orden correcto
+// Modificar la función anadirBitsHamming para asegurar el orden correcto
 
 
 // Función para imprimir el estado de los bits en cada paso
-public static void printBitState(String step, List<Integer> bits) {
+public static void imprimirEstadoBit(String step, List<Integer> bits) {
     System.out.println(step + ": " + bits);
 }
 
 
-    public static List<List<Integer>> procesoEnBloques(String text, int blockSize) {
+public static List<List<Integer>> procesoEnBloques(String text, int blockSize) {
     List<Integer> allBits = stringToBits(text);
     List<List<Integer>> blocks = new ArrayList<>();
     
@@ -218,28 +226,28 @@ public static void printBitState(String step, List<Integer> bits) {
             block.add(0);
         }
         
-        List<Integer> encodedBlock = addHammingBits(block);
+        List<Integer> encodedBlock = anadirBitsHamming(block);
         blocks.add(encodedBlock);
         
         // Verificar el bloque
-        verifyBlock(block, encodedBlock, extraerDatosSinCorreccion(encodedBlock));
+        verificarBloque(block, encodedBlock, extraerDatosSinCorreccion(encodedBlock));
     }
     
     return blocks;
 }
 
-
-public static void verifyBlock(List<Integer> original, List<Integer> encoded, List<Integer> decoded) {
+public static void verificarBloque(List<Integer> original, List<Integer> encoded, List<Integer> decoded) {
     System.out.println("\nVerificacion de bloque:");
     System.out.println("Original : " + original);
     System.out.println("Codificado: " + encoded);
+    System.out.println("Bit de paridad global: " + encoded.get(encoded.size() - 1));
     System.out.println("Decodificado: " + decoded);
     
     // Verificar que los bits de datos se mantienen
     boolean matches = true;
     int dataIndex = 0;
-    for (int i = 0; i < encoded.size(); i++) {
-        if (!isPowerOfTwo(i + 1)) {
+    for (int i = 0; i < encoded.size() - 1; i++) { // -1 para excluir el bit global
+        if (!esPotenciaDeDos(i + 1)) {
             if (dataIndex < original.size() && original.get(dataIndex) != encoded.get(i)) {
                 matches = false;
                 break;
@@ -248,9 +256,11 @@ public static void verifyBlock(List<Integer> original, List<Integer> encoded, Li
         }
     }
     System.out.println("Coinciden los bits de datos>> " + matches);
+    System.out.println("Paridad global correcta>> " + 
+        (calcularParidadGlobal(encoded.subList(0, encoded.size() - 1)) == encoded.get(encoded.size() - 1)));
 }
 
-    public static String encodeAndDecodeWithBlocks(String text, int blockSize) {
+    public static String codificarYDecodificarConBloques(String text, int blockSize) {
         try {
             // Codificar
             List<List<Integer>> BloqueCodificado = procesoEnBloques(text, blockSize);
@@ -271,7 +281,7 @@ public static void verifyBlock(List<Integer> original, List<Integer> encoded, Li
         List<List<Integer>> correctedBlocks = new ArrayList<>();
         
         for (List<Integer> block : BloqueCodificado) {
-            List<Integer> correctedBlock = detectAndCorrectErrors(block);
+            List<Integer> correctedBlock = detectarYCorregirErrores(block);
             correctedBlocks.add(correctedBlock);
         }
         
@@ -279,7 +289,7 @@ public static void verifyBlock(List<Integer> original, List<Integer> encoded, Li
     }
 
   
-public static void printCharacterBits(String text) {
+public static void imprimirCaracterBits(String text) {
     System.out.println("\nCaracteres originales a bits:");
     for (char c : text.toCharArray()) {
         String bits = String.format("%8s", Integer.toBinaryString(c)).replace(' ', '0');
@@ -322,7 +332,7 @@ public static void printCharacterBits(String text) {
 public static List<Integer> extraerDatosSinCorreccion(List<Integer> receivedData) {
     List<Integer> dataWithoutParity = new ArrayList<>();
     for (int i = 0; i < receivedData.size(); i++) {
-        if (!isPowerOfTwo(i + 1)) {
+        if (!esPotenciaDeDos(i + 1)) {
             dataWithoutParity.add(receivedData.get(i));
         }
     }
@@ -406,7 +416,7 @@ public static List<List<Integer>> cargarArchivoCodificado(String filePath) throw
         String outputPath = inputPath.replace(".txt", extension);
         
         System.out.println("Texto original: " + contenido);
-        printCharacterBits(contenido);
+        imprimirCaracterBits(contenido);
         
         List<List<Integer>> BloqueCodificado = procesoEnBloques(contenido, bloqueTamanio);
         guardarArchivoCodificado(BloqueCodificado, outputPath);
@@ -516,7 +526,7 @@ public static void decodificarConCorreccion(Scanner scanner) {
         List<List<Integer>> BloquesCorregidos = new ArrayList<>();
         for (int i = 0; i < bloques.size(); i++) {
             List<Integer> bloque = bloques.get(i);
-            List<Integer> correctedBlock = detectAndCorrectErrors(bloque);
+            List<Integer> correctedBlock = detectarYCorregirErrores(bloque);
             BloquesCorregidos.add(correctedBlock);
             
             System.out.println("\nBloque " + (i+1) + ":");
