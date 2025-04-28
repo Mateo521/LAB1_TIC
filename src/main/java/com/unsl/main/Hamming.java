@@ -178,27 +178,17 @@ public static List<Integer> anadirBitsHamming(List<Integer> data) {
 
 public static String blocksToString(List<List<Integer>> blocks, int originalBlockSize) {
     StringBuilder result = new StringBuilder();
+    List<Integer> allBits = new ArrayList<>();
     
-    System.out.println("\nConversion de bits a caracteres:");
     for (List<Integer> block : blocks) {
-        // Asegurarse de que tenemos grupos completos de 8 bits
-        for (int i = 0; i < block.size(); i += 8) {
-            if (i + 8 <= block.size()) {
-                int charValue = 0;
-                System.out.print("Bits: ");
-                for (int j = 0; j < 8; j++) {
-                    System.out.print(block.get(i + j));
-                    charValue = (charValue << 1) | block.get(i + j);
-                }
-                char decodedChar = (char) charValue;
-                System.out.printf(" -> %c (ASCII: %d)\n", decodedChar, charValue);
-                result.append(decodedChar);
-            }
-        }
+        // Asegurarse de no exceder el tamaño del bloque original
+        int size = Math.min(block.size(), originalBlockSize);
+        allBits.addAll(block.subList(0, size));
     }
     
-    return result.toString();
+    return bitsToString(allBits);
 }
+
 
 // Modificar la función anadirBitsHamming para asegurar el orden correcto
 
@@ -329,15 +319,17 @@ public static void imprimirCaracterBits(String text) {
     }
     
     // Extrae los bits de datos sin corregir errores
-public static List<Integer> extraerDatosSinCorreccion(List<Integer> receivedData) {
-    List<Integer> dataWithoutParity = new ArrayList<>();
-    for (int i = 0; i < receivedData.size(); i++) {
-        if (!esPotenciaDeDos(i + 1)) {
-            dataWithoutParity.add(receivedData.get(i));
+    public static List<Integer> extraerDatosSinCorreccion(List<Integer> receivedData) {
+        List<Integer> dataWithoutParity = new ArrayList<>();
+        // Excluimos el último bit (bit global) del procesamiento
+        for (int i = 0; i < receivedData.size() - 1; i++) {
+            if (!esPotenciaDeDos(i + 1)) {
+                dataWithoutParity.add(receivedData.get(i));
+            }
         }
+        return dataWithoutParity;
     }
-    return dataWithoutParity;
-}
+    
 
 
   public static String cargarArchivo(Scanner scanner) {
@@ -472,42 +464,33 @@ public static void introducirErroresRandom(List<List<Integer>> bloques) {
 
    
 
-public static void decodificarSinCorreccion(Scanner scanner) {
+public static void decodificarSinCorreccion(Scanner scanner) { 
     System.out.print("Ingrese la ruta del archivo .HAx o .HEx: ");
     String filePath = scanner.nextLine();
     
     try {
-        // Cargar y mostrar los bloques codificados
-        List<List<Integer>> bloques = cargarArchivoCodificado(filePath);
-        System.out.println("\nBloques codificados cargados:");
-        imprimirBloques(bloques);
-
-        List<List<Integer>> BloquesDecodificados = new ArrayList<>();
+        List<List<Integer>> blocks = cargarArchivoCodificado(filePath);
+        List<List<Integer>> decodedBlocks = new ArrayList<>();
         
-        // Mostrar el proceso de decodificación para cada bloque
-        System.out.println("\nProceso de decodificacion:");
-        for (int i = 0; i < bloques.size(); i++) {
-            List<Integer> bloque = bloques.get(i);
-            List<Integer> BloqueDecodificado = extraerDatosSinCorreccion(bloque);
-            BloquesDecodificados.add(BloqueDecodificado);
+        for (List<Integer> block : blocks) {
+            // Verificar paridad global antes de extraer datos
+            int globalParity = block.get(block.size() - 1);
+            int calculatedParity = calcularParidadGlobal(block.subList(0, block.size() - 1));
             
-            System.out.println("\nBloque " + (i+1) + ":");
-            System.out.println("Original: " + bloque);
-            System.out.println("Decodificado: " + BloqueDecodificado);
+            if (globalParity != calculatedParity) {
+                System.out.println("Advertencia: Error detectado en paridad global del bloque");
+            }
+            
+            decodedBlocks.add(extraerDatosSinCorreccion(block));
         }
-
-        // Convertir a texto y mostrar resultado
-        String TextoDecodificado = bloquesToString(BloquesDecodificados, 8);
-        System.out.println("\nTexto decodificado: " + TextoDecodificado);
-        System.out.println("Bytes del texto decodificado: " + bytesToHex(TextoDecodificado.getBytes()));
         
         String outputPath = filePath.replace(".HA", ".DE").replace(".HE", ".DE");
-        Files.write(Paths.get(outputPath), TextoDecodificado.getBytes());
+        String decodedText = blocksToString(decodedBlocks, 8);
+        Files.write(Paths.get(outputPath), decodedText.getBytes());
         
         System.out.println("Archivo decodificado guardado como: " + outputPath);
     } catch (IOException e) {
         System.out.println("Error al procesar el archivo: " + e.getMessage());
-        e.printStackTrace();
     }
 }
 
